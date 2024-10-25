@@ -1,0 +1,28 @@
+/* Alignment of elements to the left*/
+.elements-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+/*Removing margin on right side of buttons */
+/*
+.SelectList,
+.select,
+button,
+p{
+
+  margin-left: 20px;
+  white-space: nowrap;
+
+}
+*/
+
+/* Margin and font size for text */
+p{
+
+  margin-right: 20px;
+  font-size: 20px;
+
+}
