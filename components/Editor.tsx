@@ -37,6 +37,7 @@ export const MilkdownEditor: FC<MilkdownProps> = ({ markdown, onChange }) => {
     const nodeViewFactory = useNodeViewFactory();
     const editorRef = useRef<Editor | null>(null);
 
+
     const { get } = useEditor((root) => {
         const editor = Editor.make()
             .config((ctx) => {
@@ -46,15 +47,15 @@ export const MilkdownEditor: FC<MilkdownProps> = ({ markdown, onChange }) => {
                 ctx.get(listenerCtx).markdownUpdated(
                     throttle((ctx, updatedMarkdown, prevMarkdown) => {
                         onChange(updatedMarkdown);
+
                     }, 200)
                 );
 
                 const customInputRules: InputRule[] = [
-                    preventTitleInputRule()  // Aplicamos la regla de evitar los encabezados
+                    preventTitleInputRule()
                 ];
 
-                ctx.set(inputRulesCtx, customInputRules);  // Asignamos las reglas de entrada al editor
-
+                ctx.set(inputRulesCtx, customInputRules);
 
                 ctx.set(block.key, [
                     pluginViewFactory({ component: BlockView }),
@@ -77,6 +78,7 @@ export const MilkdownEditor: FC<MilkdownProps> = ({ markdown, onChange }) => {
                         stopEvent: () => true,
                     })
                 ),
+                math,
             ].flat())
             .use(block)
             .use(cursor)

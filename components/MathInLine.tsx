@@ -7,6 +7,7 @@ import type { FC } from "react";
 import { useEffect, useRef, useState } from "react";
 import BootstrapToolbar from "./MathToolBar";
 import './Styles/InlineMath.css';
+import {update} from "lodash";
 
 export const MathInLine: FC = () => {
     const { node, setAttrs } = useNodeViewContext();
@@ -17,13 +18,22 @@ export const MathInLine: FC = () => {
     const [loading, getEditor] = useInstance();
     const [modalVisible, setModalVisible] = useState(false);
 
+    // Inicializamos el valor de la fórmula con el contenido del nodo, si está presente
     const [formulaSource, setFormulaSource] = useState(() => {
-        if (node.content.size > 0) {
-            return node.content.child(0).text || "";
-        }
-        return "";
+        const initialValue = node.content.size > 0 ? node.content.child(0).text || "" : "";
+        return initialValue.trim();
     });
 
+    // Función para manejar el cambio en el textarea y actualizar directamente el Markdown
+    const handleTextareaChange = (UpdateFormula) => {
+        /*const e = document.getElementsByTagName("textarea")[0];
+        const newValue = e.value;*/
+        setFormulaSource(UpdateFormula);  // Actualiza el estado con la nueva fórmula (en LaTeX)
+        setAttrs({ value: UpdateFormula }); // Actualiza el valor en el modelo del documento
+        console.log(UpdateFormula);
+    };
+
+    // Función para agregar una fórmula al texto actual (en interacción con la barra de herramientas)
     const addFormula = (newFormula: string) => {
         if (!codeInput.current) return;
 
@@ -31,52 +41,47 @@ export const MathInLine: FC = () => {
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
 
-        const combinationsToCheck = ['{x}', '{a}', '{\\alpha}', 'x', 'a', '\\alpha'];
-
         let updatedFormula = formulaSource;
-        if (updatedFormula.trim() !== "") {
-            updatedFormula += "\n";
-        }
 
+        // Si hay texto seleccionado, lo reemplazamos por la nueva fórmula
         if (start !== end) {
-            const selectedText = updatedFormula.substring(start, end);
             updatedFormula = updatedFormula.substring(0, start) + newFormula + updatedFormula.substring(end);
-            for (const combination of combinationsToCheck) {
-                if (newFormula.includes(combination)) {
-                    updatedFormula = updatedFormula.replace(combination, `{${selectedText}}`);
-                    break;
-                }
-            }
         } else {
             updatedFormula += newFormula;
         }
 
-        setFormulaSource(updatedFormula);
-        setAttrs({ value: updatedFormula });
-
-        // Imprimir en consola el contenido actualizado
-        //console.log(`Markdown:\n$${updatedFormula}$\n$$\n${updatedFormula}\n$$`);
+        // Actualizamos el estado y el modelo del documento con la nueva fórmula
+        /*setFormulaSource(updatedFormula);
+        setAttrs({ value: updatedFormula });*/
+        handleTextareaChange(updatedFormula);
     };
 
+    // Renderizado de la fórmula KaTeX como vista previa
     useEffect(() => {
         requestAnimationFrame(() => {
             if (codePanel.current && !loading && value === "preview") {
                 try {
                     katex.render(formulaSource, codePanel.current, getEditor().ctx.get(katexOptionsCtx.key));
                 } catch (error) {
-                    console.error("Error rendering KaTeX:", error);
+                    console.error("Error al renderizar KaTeX:", error);
                 }
             }
             if (codePanelInline.current) {
                 try {
                     katex.render(formulaSource, codePanelInline.current, getEditor().ctx.get(katexOptionsCtx.key));
                 } catch (error) {
-                    console.error("Error rendering KaTeX inline:", error);
+                    console.error("Error al renderizar KaTeX inline:", error);
                 }
             }
         });
     }, [formulaSource, getEditor, loading, value, modalVisible]);
 
+    // Sincronizamos el valor de formulaSource con el valor del nodo cuando se carga el componente
+    useEffect(() => {
+        setFormulaSource(node.content.size > 0 ? node.content.child(0).text || "" : "");
+    }, [node]);
+
+    // Manejo del contenido del modal para mostrar la fórmula
     let html = (
         <div className="py-3 text-center inline-math" ref={codePanelInline} onClick={() => setModalVisible(true)} />
     );
@@ -108,7 +113,10 @@ export const MathInLine: FC = () => {
                         padding: "0",
                         userSelect: "none",
                     }}
-                    onClick={() => setModalVisible(false)}
+                    onClick={() =>{
+                        setModalVisible(false);
+                        /*handleTextareaChange();*/
+                    }}
                 >
                     &times;
                 </button>
@@ -117,23 +125,23 @@ export const MathInLine: FC = () => {
                         <div className="-mb-px flex flex-wrap">
                             <Tabs.Trigger
                                 value="preview"
-                                className={[ "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300", value === "preview" ? "text-nord9" : ""].join(" ")}
-                                onClick={() => {
-                                    setAttrs({ value: codeInput.current?.value || "" });
-                                    setValue("preview");
-                                }}
+                                className={[
+                                    "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300",
+                                    value === "preview" ? "text-nord9" : "",
+                                ].join(" ")}
+                                onClick={() => setValue("preview")}
                             >
-                                Preview
+                                Vista previa
                             </Tabs.Trigger>
                             <Tabs.Trigger
                                 value="source"
-                                className={[ "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300", value === "source" ? "text-nord9" : ""].join(" ")}
-                                onClick={() => {
-                                    setAttrs({ value: codeInput.current?.value || "" });
-                                    setValue("source");
-                                }}
+                                className={[
+                                    "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300",
+                                    value === "source" ? "text-nord9" : "",
+                                ].join(" ")}
+                                onClick={() => setValue("source")}
                             >
-                                Source
+                                Fuente
                             </Tabs.Trigger>
                         </div>
                     </Tabs.List>
@@ -149,7 +157,7 @@ export const MathInLine: FC = () => {
                             onChange={e => {
                                 setFormulaSource(e.target.value);
                                 setAttrs({ value: e.target.value });
-                            }}
+                            }}// Escucha el cambio en el textarea
                         />
                     </Tabs.Content>
                 </Tabs.Root>
@@ -157,7 +165,6 @@ export const MathInLine: FC = () => {
         );
     }
 
+    // Devolver el contenido con la vista previa y la fórmula en el formato adecuado
     return html;
 };
-
-

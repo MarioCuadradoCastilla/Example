@@ -43,8 +43,7 @@ export const MathBlock: FC = () => {
     }
 
     setFormulaSource(updatedFormula);
-    // Actualizar el atributo en el nodo
-    setAttrs({ value: updatedFormula }); // Asegúrate de que se importe setAttrs desde useNodeViewContext
+    setAttrs({ value: updatedFormula });
   };
 
   useEffect(() => {
@@ -65,15 +64,14 @@ export const MathBlock: FC = () => {
   return (
       <div className="math-block pt-3 pb-3">
         <Tabs
-            contentEditable="false"
             activeKey={value}
             onSelect={(k) => setValue(k ?? "")}
             className="mb-3 justify-content-center"
         >
-          <Tab eventKey="preview" title="Preview" contentEditable="false">
-            <div className="text-center" ref={mathPanel} />
+          <Tab eventKey="preview" title="Preview">
+            <div className="text-center" ref={mathPanel} contentEditable={false} />
           </Tab>
-          <Tab eventKey="source" title="Source" contentEditable="false">
+          <Tab eventKey="source" title="Source">
             <BootstrapToolbar addFormula={addFormula} />
             <textarea
                 className="math-area block h-48 w-full bg-slate-800 font-mono text-gray-50"
@@ -81,11 +79,12 @@ export const MathBlock: FC = () => {
                 value={formulaSource}
                 onChange={e => {
                   setFormulaSource(e.target.value);
-                  setAttrs({ value: e.target.value }); // Actualiza el atributo del nodo en el editor
+                  setAttrs({ value: e.target.value });
                 }}
             />
           </Tab>
         </Tabs>
       </div>
+
   );
 };
