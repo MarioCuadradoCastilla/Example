@@ -1,18 +1,64 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 .milkdown {
   @apply bg-slate-50 px-2 py-4 m-5 border rounded;
 }
 
 .editor {
-
 }
-.prose{max-width: 500ch}
+
+.prose {
+  max-width: 500ch;
+}
+
+/* Estilos para KaTeX en el markdown */
+.katex-preview {
+  display: inline-block;
+  margin: 0 0.2em;
+  text-indent: 0;
+  background-color: #f8f9fa;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.katex-preview .katex {
+  display: inline-block;
+  text-rendering: auto;
+  font-size: 1.1em;
+  line-height: 1.2;
+}
 
 /* Otros estilos personalizados */
 .ProseMirror {
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+#app > div {
+  padding: 20px;
+}
+
+#markdown-preview {
+  background-color: #f7f7f7;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Ajustes responsivos */
+@media screen and (max-width: 768px) {
+  #app {
+    flex-direction: column;
+  }
 }

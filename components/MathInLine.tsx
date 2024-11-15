@@ -1,170 +1,168 @@
 import { katexOptionsCtx } from "@milkdown/plugin-math";
 import { useInstance } from "@milkdown/react";
 import { useNodeViewContext } from "@prosemirror-adapter/react";
-import * as Tabs from "@radix-ui/react-tabs";
 import katex from "katex";
 import type { FC } from "react";
 import { useEffect, useRef, useState } from "react";
 import BootstrapToolbar from "./MathToolBar";
 import './Styles/InlineMath.css';
-import {update} from "lodash";
+import { useOnChange } from "./Editor";
+import { FaPencilAlt } from "react-icons/fa";
 
 export const MathInLine: FC = () => {
     const { node, setAttrs } = useNodeViewContext();
     const codePanel = useRef<HTMLDivElement>(null);
     const codePanelInline = useRef<HTMLDivElement>(null);
     const codeInput = useRef<HTMLTextAreaElement>(null);
-    const [value, setValue] = useState("source");
+    const editorRef = useRef<HTMLDivElement>(null);
     const [loading, getEditor] = useInstance();
     const [modalVisible, setModalVisible] = useState(false);
+    const onChange = useOnChange();
 
-    // Inicializamos el valor de la fórmula con el contenido del nodo, si está presente
+    const stripDelimiters = (formula: string): string => formula.replace(/^\$|\$$/g, '');
+
     const [formulaSource, setFormulaSource] = useState(() => {
         const initialValue = node.content.size > 0 ? node.content.child(0).text || "" : "";
-        return initialValue.trim();
+        return stripDelimiters(initialValue.trim());
     });
 
-    // Función para manejar el cambio en el textarea y actualizar directamente el Markdown
-    const handleTextareaChange = (UpdateFormula) => {
-        /*const e = document.getElementsByTagName("textarea")[0];
-        const newValue = e.value;*/
-        setFormulaSource(UpdateFormula);  // Actualiza el estado con la nueva fórmula (en LaTeX)
-        setAttrs({ value: UpdateFormula }); // Actualiza el valor en el modelo del documento
-        console.log(UpdateFormula);
+    const [originalFormula, setOriginalFormula] = useState(formulaSource);
+
+    const renderPreview = (formula: string) => {
+        if (codePanel.current && !loading) {
+            try {
+                katex.render(formula, codePanel.current, getEditor().ctx.get(katexOptionsCtx.key));
+            } catch (error) {
+                console.error("Error rendering KaTeX:", error);
+            }
+        }
     };
 
-    // Función para agregar una fórmula al texto actual (en interacción con la barra de herramientas)
+    const handleTextareaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newFormula = event.target.value;
+        setFormulaSource(newFormula);
+        setAttrs({ value: newFormula });
+        renderPreview(newFormula);
+    };
+
     const addFormula = (newFormula: string) => {
         if (!codeInput.current) return;
-
         const textarea = codeInput.current;
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
 
-        let updatedFormula = formulaSource;
+        const updatedFormula = start !== end
+            ? formulaSource.substring(0, start) + newFormula + formulaSource.substring(end)
+            : formulaSource + newFormula;
 
-        // Si hay texto seleccionado, lo reemplazamos por la nueva fórmula
-        if (start !== end) {
-            updatedFormula = updatedFormula.substring(0, start) + newFormula + updatedFormula.substring(end);
-        } else {
-            updatedFormula += newFormula;
-        }
-
-        // Actualizamos el estado y el modelo del documento con la nueva fórmula
-        /*setFormulaSource(updatedFormula);
-        setAttrs({ value: updatedFormula });*/
-        handleTextareaChange(updatedFormula);
+        setFormulaSource(updatedFormula);
+        setAttrs({ value: updatedFormula });
+        renderPreview(updatedFormula);
     };
 
-    // Renderizado de la fórmula KaTeX como vista previa
     useEffect(() => {
-        requestAnimationFrame(() => {
-            if (codePanel.current && !loading && value === "preview") {
-                try {
-                    katex.render(formulaSource, codePanel.current, getEditor().ctx.get(katexOptionsCtx.key));
-                } catch (error) {
-                    console.error("Error al renderizar KaTeX:", error);
-                }
+        if (node.content.size > 0 && node.content.child(0).text) {
+            const content = node.content.child(0).text || "";
+            const cleanContent = stripDelimiters(content);
+            if (cleanContent !== formulaSource) {
+                setFormulaSource(cleanContent);
+                setAttrs({ value: cleanContent });
             }
+        }
+    }, [node]);
+
+    useEffect(() => {
+        const renderFormula = () => {
             if (codePanelInline.current) {
                 try {
                     katex.render(formulaSource, codePanelInline.current, getEditor().ctx.get(katexOptionsCtx.key));
                 } catch (error) {
-                    console.error("Error al renderizar KaTeX inline:", error);
+                    console.error("Error rendering inline KaTeX:", error);
                 }
             }
-        });
-    }, [formulaSource, getEditor, loading, value, modalVisible]);
+        };
 
-    // Sincronizamos el valor de formulaSource con el valor del nodo cuando se carga el componente
+        renderFormula();
+    }, [formulaSource, getEditor, loading]);
+
     useEffect(() => {
-        setFormulaSource(node.content.size > 0 ? node.content.child(0).text || "" : "");
-    }, [node]);
+        if (modalVisible && formulaSource) {
+            // Render the initial preview when modal opens
+            renderPreview(formulaSource);
+        }
+    }, [modalVisible]);
 
-    // Manejo del contenido del modal para mostrar la fórmula
-    let html = (
-        <div className="py-3 text-center inline-math" ref={codePanelInline} onClick={() => setModalVisible(true)} />
-    );
+    useEffect(() => {
+        setModalVisible(true);
+    }, []);
 
-    if (modalVisible) {
-        html = (
+    const handleCancel = () => {
+        setFormulaSource(originalFormula);
+        setAttrs({ value: originalFormula });
+        setModalVisible(false);
+    };
+
+    const handleConfirm = () => {
+        const formulaWithDelimiters = `$${formulaSource}$`;
+        console.log('Formula confirmada:', formulaWithDelimiters);
+
+        onChange(formulaWithDelimiters);
+        setOriginalFormula(formulaSource);
+        setModalVisible(false);
+    };
+
+    return (
+        <div ref={editorRef} style={{ display: "inline-block" }}>
             <div
-                style={{
-                    position: "fixed",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    backgroundColor: "#fff",
-                    padding: "20px",
-                    borderRadius: "8px",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-                    zIndex: "999",
-                }}
+                className="inline-math"
+                ref={codePanelInline}
+                tabIndex={-1}
+                role="button"
+                aria-label="Edit math formula"
+                onClick={() => setModalVisible(true)}
             >
-                <button
-                    style={{
-                        position: "absolute",
-                        top: "10px",
-                        right: "10px",
-                        cursor: "pointer",
-                        border: "none",
-                        background: "none",
-                        fontSize: "60px",
-                        padding: "0",
-                        userSelect: "none",
-                    }}
-                    onClick={() =>{
-                        setModalVisible(false);
-                        /*handleTextareaChange();*/
-                    }}
-                >
-                    &times;
-                </button>
-                <Tabs.Root contentEditable={false} value={value} onValueChange={(value) => setValue(value)}>
-                    <Tabs.List className="border-b border-gray-200 text-center text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                        <div className="-mb-px flex flex-wrap">
-                            <Tabs.Trigger
-                                value="preview"
-                                className={[
-                                    "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300",
-                                    value === "preview" ? "text-nord9" : "",
-                                ].join(" ")}
-                                onClick={() => setValue("preview")}
-                            >
-                                Vista previa
-                            </Tabs.Trigger>
-                            <Tabs.Trigger
-                                value="source"
-                                className={[
-                                    "inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300",
-                                    value === "source" ? "text-nord9" : "",
-                                ].join(" ")}
-                                onClick={() => setValue("source")}
-                            >
-                                Fuente
-                            </Tabs.Trigger>
-                        </div>
-                    </Tabs.List>
-                    <Tabs.Content value="preview">
-                        <div className="text-center py-2" ref={codePanel} />
-                    </Tabs.Content>
-                    <Tabs.Content value="source">
-                        <BootstrapToolbar addFormula={addFormula} />
-                        <textarea
-                            className="math-area inline h-24 w-full bg-slate-800 font-mono text-gray-50"
-                            ref={codeInput}
-                            value={formulaSource}
-                            onChange={e => {
-                                setFormulaSource(e.target.value);
-                                setAttrs({ value: e.target.value });
-                            }}// Escucha el cambio en el textarea
-                        />
-                    </Tabs.Content>
-                </Tabs.Root>
+                <div className="pencil-icon">
+                    <FaPencilAlt style={{ color: "white" }} />
+                </div>
             </div>
-        );
-    }
 
-    // Devolver el contenido con la vista previa y la fórmula en el formato adecuado
-    return html;
+            {modalVisible && (
+                <>
+                    <div className="math-modal-overlay" onClick={() => setModalVisible(false)} />
+                    <div
+                        className="math-modal"
+                        role="dialog"
+                        aria-label="Math formula editor"
+                    >
+                        <div className="math-editor-container">
+                            <BootstrapToolbar addFormula={addFormula} />
+                            <textarea
+                                className="math-textarea"
+                                ref={codeInput}
+                                value={formulaSource}
+                                onChange={handleTextareaChange}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                    }
+                                }}
+                                autoFocus
+                                aria-label="Math formula input"
+                                placeholder="Enter your LaTeX formula here"
+                            />
+                            <div className="preview-container">
+                                <div className="preview-label">Preview:</div>
+                                <div className="preview-content" ref={codePanel} />
+                            </div>
+                        </div>
+
+                        <div className="action-buttons">
+                            <button className="button button-cancel" onClick={handleCancel}>Cancelar</button>
+                            <button className="button button-confirm" onClick={handleConfirm}>Aceptar</button>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
 };
