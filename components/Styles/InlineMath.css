@@ -1,6 +1,14 @@
 /* Estilo para el bloque matemático inline */
-.inline-math {
+.math-inline-wrapper {
   display: inline-flex;
+  user-select: none;
+  cursor: pointer;
+  vertical-align: baseline;
+  position: relative;
+}
+
+.inline-math {
+  margin: 0 0.2em;
   padding: 4px 8px;
   background-color: rgb(240, 240, 240);
   color: black;
@@ -9,6 +17,8 @@
   transition: background-color 0.3s ease;
   user-select: none;
   pointer-events: all;
+  position: relative;
+  z-index: 1;
 }
 
 .inline-math:hover {
@@ -20,6 +30,12 @@
   margin-left: 8px;
   vertical-align: middle;
   font-size: 16px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.inline-math:hover .pencil-icon {
+  opacity: 1;
 }
 
 .math-modal-overlay {

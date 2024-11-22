@@ -2,8 +2,7 @@ import { katexOptionsCtx } from "@milkdown/plugin-math";
 import { useInstance } from "@milkdown/react";
 import { useNodeViewContext } from "@prosemirror-adapter/react";
 import katex from "katex";
-import type { FC } from "react";
-import { useEffect, useRef, useState } from "react";
+import {FC, useEffect, useRef, useState } from "react";
 import BootstrapToolbar from "./MathToolBar";
 import { defaultValueCtx } from "@milkdown/core";
 import './Styles/MathBlock.css';
@@ -107,6 +106,7 @@ export const MathBlock: FC = () => {
     }
 
     setFormulaSource(updatedFormula);
+    console.log("formula :"+updatedFormula);
     setAttrs({ value: updatedFormula });
     renderPreview(updatedFormula);
     renderInlineBlock(updatedFormula); // Asegúrate de actualizar también el bloque inline

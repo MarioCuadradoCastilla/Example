@@ -1,8 +1,9 @@
 import { katexOptionsCtx } from "@milkdown/plugin-math";
 import { useInstance } from "@milkdown/react";
 import { useNodeViewContext } from "@prosemirror-adapter/react";
+import { TextSelection } from "prosemirror-state";
 import katex from "katex";
-import type { FC } from "react";
+import {FC} from "react";
 import { useEffect, useRef, useState } from "react";
 import BootstrapToolbar from "./MathToolBar";
 import './Styles/InlineMath.css';
@@ -10,7 +11,7 @@ import { useOnChange } from "./Editor";
 import { FaPencilAlt } from "react-icons/fa";
 
 export const MathInLine: FC = () => {
-    const { node, setAttrs } = useNodeViewContext();
+    const { node, view, getPos } = useNodeViewContext();
     const codePanel = useRef<HTMLDivElement>(null);
     const codePanelInline = useRef<HTMLDivElement>(null);
     const codeInput = useRef<HTMLTextAreaElement>(null);
@@ -18,15 +19,58 @@ export const MathInLine: FC = () => {
     const [loading, getEditor] = useInstance();
     const [modalVisible, setModalVisible] = useState(false);
     const onChange = useOnChange();
+    const isNewNode = useRef(true);
+    const lastKnownFormula = useRef('');
 
     const stripDelimiters = (formula: string): string => formula.replace(/^\$|\$$/g, '');
 
     const [formulaSource, setFormulaSource] = useState(() => {
         const initialValue = node.content.size > 0 ? node.content.child(0).text || "" : "";
-        return stripDelimiters(initialValue.trim());
+        const stripped = stripDelimiters(initialValue.trim()); // Aseguramos que no haya espacios
+        lastKnownFormula.current = stripped;
+        return stripped;
     });
 
     const [originalFormula, setOriginalFormula] = useState(formulaSource);
+
+    useEffect(() => {
+        if (isNewNode.current && !modalVisible && formulaSource === '') {
+            isNewNode.current = false;
+            setModalVisible(true);
+        }
+    }, []);
+
+    const updateNodeContent = (newFormula: string) => {
+        const { state, dispatch } = view;
+        const { tr } = state;
+        const pos = typeof getPos === 'function' ? getPos() : null;
+
+        if (pos === null) return;
+
+        const start = pos + 1;
+        const end = pos + node.nodeSize - 1;
+
+        // Crear el nuevo nodo de texto sin espacios adicionales
+        const textNode = state.schema.text(newFormula);
+        tr.replaceRangeWith(start, end, textNode);
+        dispatch(tr);
+    };
+
+    const setSelectionAfterNode = (pos: number) => {
+        const { state, dispatch } = view;
+        const { tr } = state;
+        const newPos = pos + node.nodeSize;
+
+        // No insertar un espacio adicional
+        const nodeAfter = tr.doc.nodeAt(newPos);
+        if (!nodeAfter || !/^\s/.test(nodeAfter.text || '')) {
+            tr.insertText('', newPos); // Solo mover el cursor sin insertar un espacio
+        }
+
+        // Colocar la selección justo después del nodo, sin espacio adicional
+        const selection = TextSelection.create(tr.doc, newPos);
+        dispatch(tr.setSelection(selection));
+    };
 
     const renderPreview = (formula: string) => {
         if (codePanel.current && !loading) {
@@ -41,7 +85,6 @@ export const MathInLine: FC = () => {
     const handleTextareaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newFormula = event.target.value;
         setFormulaSource(newFormula);
-        setAttrs({ value: newFormula });
         renderPreview(newFormula);
     };
 
@@ -56,7 +99,6 @@ export const MathInLine: FC = () => {
             : formulaSource + newFormula;
 
         setFormulaSource(updatedFormula);
-        setAttrs({ value: updatedFormula });
         renderPreview(updatedFormula);
     };
 
@@ -64,9 +106,13 @@ export const MathInLine: FC = () => {
         if (node.content.size > 0 && node.content.child(0).text) {
             const content = node.content.child(0).text || "";
             const cleanContent = stripDelimiters(content);
-            if (cleanContent !== formulaSource) {
+
+            if (cleanContent !== lastKnownFormula.current) {
+                if (content.includes(lastKnownFormula.current)) {
+                    return;
+                }
                 setFormulaSource(cleanContent);
-                setAttrs({ value: cleanContent });
+                lastKnownFormula.current = cleanContent;
             }
         }
     }, [node]);
@@ -87,39 +133,81 @@ export const MathInLine: FC = () => {
 
     useEffect(() => {
         if (modalVisible && formulaSource) {
-            // Render the initial preview when modal opens
             renderPreview(formulaSource);
         }
     }, [modalVisible]);
+
+    const handleCancel = () => {
+        setFormulaSource(originalFormula);
+        setModalVisible(false);
+
+        setTimeout(() => {
+            view.focus();
+            const pos = typeof getPos === 'function' ? getPos() : null;
+            if (pos !== null) {
+                setSelectionAfterNode(pos);
+            }
+        }, 0);
+    };
+
+    const handleConfirm = () => {
+        // Limpiar la fórmula de cualquier espacio adicional antes de enviarla
+        const sanitizedFormula = formulaSource.trim(); // Asegura que no haya espacios extras
+        let formulaWithDelimiters = `$${sanitizedFormula}$`; // Incluye los delimitadores sin espacios extra
+
+        // Aseguramos que haya un espacio después de la fórmula (si no lo hay ya)
+        if (!sanitizedFormula.endsWith(' ')) {
+            formulaWithDelimiters += ' ';  // Agregar espacio solo si no termina con uno
+        }
+
+        lastKnownFormula.current = sanitizedFormula;
+        onChange(formulaWithDelimiters);  // Enviar solo la fórmula limpia, con espacio agregado si es necesario
+        setOriginalFormula(sanitizedFormula);
+        updateNodeContent(sanitizedFormula);  // Actualizar el nodo con la fórmula limpia y el espacio
+
+        setModalVisible(false);
+
+        setTimeout(() => {
+            view.focus();
+            const pos = typeof getPos === 'function' ? getPos() : null;
+            if (pos !== null) {
+                setSelectionAfterNode(pos); // Mueve la selección fuera del nodo
+            }
+        }, 0);
+    };
 
     useEffect(() => {
         setModalVisible(true);
     }, []);
 
-    const handleCancel = () => {
-        setFormulaSource(originalFormula);
-        setAttrs({ value: originalFormula });
-        setModalVisible(false);
-    };
-
-    const handleConfirm = () => {
-        const formulaWithDelimiters = `$${formulaSource}$`;
-        console.log('Formula confirmada:', formulaWithDelimiters);
-
-        onChange(formulaWithDelimiters);
-        setOriginalFormula(formulaSource);
-        setModalVisible(false);
+    const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!modalVisible) {
+            setModalVisible(true);
+        }
     };
 
     return (
-        <div ref={editorRef} style={{ display: "inline-block" }}>
+        <div
+            ref={editorRef}
+            style={{ display: "inline-flex" }}
+            className="math-inline-wrapper"
+            contentEditable={false}
+            data-formula={lastKnownFormula.current}
+        >
             <div
                 className="inline-math"
                 ref={codePanelInline}
-                tabIndex={-1}
+                tabIndex={0}
                 role="button"
                 aria-label="Edit math formula"
-                onClick={() => setModalVisible(true)}
+                onClick={handleClick}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        handleClick(e as unknown as React.MouseEvent);
+                    }
+                }}
             >
                 <div className="pencil-icon">
                     <FaPencilAlt style={{ color: "white" }} />
@@ -128,7 +216,16 @@ export const MathInLine: FC = () => {
 
             {modalVisible && (
                 <>
-                    <div className="math-modal-overlay" onClick={() => setModalVisible(false)} />
+                    <div
+                        className="math-modal-overlay"
+                        onClick={handleCancel}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                                handleCancel();
+                            }
+                        }}
+                        tabIndex={-1}
+                    />
                     <div
                         className="math-modal"
                         role="dialog"
@@ -141,11 +238,6 @@ export const MathInLine: FC = () => {
                                 ref={codeInput}
                                 value={formulaSource}
                                 onChange={handleTextareaChange}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                    }
-                                }}
                                 autoFocus
                                 aria-label="Math formula input"
                                 placeholder="Enter your LaTeX formula here"
@@ -157,8 +249,8 @@ export const MathInLine: FC = () => {
                         </div>
 
                         <div className="action-buttons">
-                            <button className="button button-cancel" onClick={handleCancel}>Cancelar</button>
-                            <button className="button button-confirm" onClick={handleConfirm}>Aceptar</button>
+                            <button className="button button-cancel" onClick={handleCancel}>Cancel</button>
+                            <button className="button button-confirm" onClick={handleConfirm}>Accept</button>
                         </div>
                     </div>
                 </>

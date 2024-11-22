@@ -55,6 +55,9 @@
   height: 100%;
   overflow-y: auto;
 }
+.milkdown, .editor, .ProseMirror, #markdown-preview {
+  cursor: text;
+}
 
 /* Ajustes responsivos */
 @media screen and (max-width: 768px) {
